@@ -1,6 +1,6 @@
 // src/hooks/useGhost.js - FIXED VERSION
 import { useState } from "react";
-import { ghostSuggestAPI, ghostAskAPI } from "../lib/api";
+import { ghostAskAPI, ghostSpeakAPI, ghostSuggestAPI } from "../lib/api";
 
 function isQuestion(text = "") {
   const raw = text.trim().toLowerCase();
@@ -41,6 +41,7 @@ function isQuestion(text = "") {
 
   return false;
 }
+
 function formatSay(input = "") {
   if (!input) return "";
 
@@ -62,9 +63,9 @@ function formatSay(input = "") {
   }
 
   // If it has bullets like "-" or "•", line them up
-  if (/[•\-–]\s/.test(s)) {
+  if (/[•\-—]\s/.test(s)) {
     s = s
-      .split(/(?= [•\-–]\s)|\n/g)
+      .split(/(?= [•\-—]\s)|\n/g)
       .map((x) => x.trim())
       .filter(Boolean)
       .join("\n");
@@ -97,25 +98,17 @@ export function useGhost({ tasks, activeId, setActive }) {
 
   async function speak(text) {
     return new Promise(async (resolve) => {
-    const pretty = formatSay(text);
+      const pretty = formatSay(text);
       setGhostSpeaking(true);
-      setGhostCaption(pretty); 
+      setGhostCaption(pretty);
 
       try {
-        const r = await fetch("http://localhost:5174/api/speak", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-
-        if (!r.ok) throw new Error("TTS failed");
-
-        const audio = await r.arrayBuffer();
-        const blob = new Blob([audio], { type: "audio/mpeg" });
+        const audioBuffer = await ghostSpeakAPI(text);
+        const blob = new Blob([audioBuffer], { type: "audio/mpeg" });
         const url = URL.createObjectURL(blob);
-        const a = new Audio(url);
+        const audio = new Audio(url);
 
-        a.onerror = () => {
+        audio.onerror = () => {
           // Fallback to web speech if audio fails
           console.warn("Audio playback failed, using web speech");
           const u = new SpeechSynthesisUtterance(pretty);
@@ -126,12 +119,12 @@ export function useGhost({ tasks, activeId, setActive }) {
           window.speechSynthesis.speak(u);
         };
 
-        a.onended = () => {
+        audio.onended = () => {
           setGhostSpeaking(false);
           resolve();
         };
 
-        await a.play();
+        await audio.play();
       } catch (err) {
         console.error("TTS error:", err);
         // Always fall back to web speech
@@ -148,10 +141,10 @@ export function useGhost({ tasks, activeId, setActive }) {
   // Helper function to get board state for API calls
   function getBoardState() {
     return {
-      backlog: tasks.filter((t) => t.col === "backlog"),
-      doing: tasks.filter((t) => t.col === "doing"),
-      review: tasks.filter((t) => t.col === "review"),
-      done: tasks.filter((t) => t.col === "done"),
+      backlogCount: tasks.filter((t) => t.col === "backlog").length,
+      doingCount: tasks.filter((t) => t.col === "doing").length,
+      reviewCount: tasks.filter((t) => t.col === "review").length,
+      doneCount: tasks.filter((t) => t.col === "done").length,
       doneToday: tasks.filter(
         (t) =>
           t.col === "done" &&

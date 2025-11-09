@@ -1,35 +1,48 @@
 // src/lib/api.js
-const BASE = `http://localhost:${import.meta.env.VITE_API_PORT || 5174}`;
+// Dynamically determine API URL based on environment
+const API_URL = import.meta.env.VITE_API_URL || 
+                (import.meta.env.PROD 
+                  ? 'https://kanban-ghost.onrender.com'  // Your Render backend URL
+                  : 'http://localhost:5174');
 
 export async function ghostSuggestAPI(tasks) {
-  try {
-    const r = await fetch(`${BASE}/api/suggest`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tasks }),
-    });
-    return await r.json();
-  } catch {
-    return { say: "Focus the smallest TODO." };
+  const response = await fetch(`${API_URL}/api/suggest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tasks }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
   }
+  
+  return response.json();
 }
 
 export async function ghostAskAPI(text, boardState = {}) {
-  try {
-    const r = await fetch(`${BASE}/api/ask`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text,
-        boardState: {
-          backlogCount: boardState.backlog?.length || 0,
-          doingCount: boardState.doing?.length || 0,
-          doneToday: boardState.doneToday || 0,
-        },
-      }),
-    });
-    return await r.json();
-  } catch {
-    return { say: "Start with one tiny step." };
+  const response = await fetch(`${API_URL}/api/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, boardState }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
   }
+  
+  return response.json();
+}
+
+export async function ghostSpeakAPI(text) {
+  const response = await fetch(`${API_URL}/api/speak`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`TTS error: ${response.status}`);
+  }
+  
+  return response.arrayBuffer();
 }

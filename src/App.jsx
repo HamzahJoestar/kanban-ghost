@@ -8,6 +8,8 @@ import AddTaskBar from "./components/AddTaskBar";
 import Board from "./components/Board";
 import StudyFocus from "./components/StudyFocus";
 import NextUpList from "./components/NextUpList";
+import { ghostAskAPI } from "./lib/api";
+
 
 export default function App() {
   const {
@@ -445,13 +447,9 @@ function getThroughputLast7Days(list) {
             try {
               setGhostThinking(true);
               setGhostTopic(text);
-              const r = await fetch("http://localhost:5174/api/ask", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text }),
-              });
-              const { say } = await r.json();
+              const { say } = await ghostAskAPI(text);
               await speak(say || "Start with one tiny step.");
+
             } catch {
               await speak("I believe in you. Start with one tiny step.");
             } finally {
