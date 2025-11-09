@@ -1,4 +1,4 @@
-# Kanban Ghost Deployment Guide 🎃
+# Boo-Do Deployment Guide 🎃
 
 ## Your Deployments
 - **Frontend (Vercel)**: https://kanban-ghost.vercel.app/

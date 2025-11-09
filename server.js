@@ -29,7 +29,7 @@ const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
 // IMPROVED SYSTEM PROMPTS
 // ============================================================================
 
-const GHOST_PERSONALITY = `You are Kanban Ghost 👻, a friendly and helpful productivity assistant.
+const GHOST_PERSONALITY = `You are Boo-Do 👻, a friendly and helpful productivity assistant.
 
 CORE BEHAVIOR:
 - Be concise (2-3 sentences max)
@@ -430,7 +430,7 @@ app.post("/api/speak", async (req, res) => {
 // ============================================================================
 
 app.listen(PORT, () => {
-  console.log(`🎃 Kanban Ghost server running on http://localhost:${PORT}`);
+  console.log(`🎃 Boo-Do Ghost server running on http://localhost:${PORT}`);
   console.log(
     `📡 AI Provider: ${
       hasAnthropic

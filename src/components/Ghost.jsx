@@ -82,7 +82,7 @@ export default function Ghost({
       className={`fixed text-4xl select-none transition-transform z-50 ${animClass} ${hoverScale}`}
       style={style}
       title="Drag me! Boo 👻"
-      aria-label="Kanban Ghost"
+      aria-label="Boo-Do"
     >
       {/* thought bubble when thinking */}
       {thinking && (
