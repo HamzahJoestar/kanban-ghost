@@ -10,7 +10,7 @@ export default function HeaderBar({
 }) {
   return (
     <div className="flex items-center justify-between mb-6">
-      <h1 className="text-3xl font-bold">Kanban Ghost 👻</h1>
+      <h1 className="text-3xl font-bold">Boo-Do 👻</h1>
 
       <div className="flex gap-2">
         {/* Ghost Suggests */}
