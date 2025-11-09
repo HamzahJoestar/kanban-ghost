@@ -14,12 +14,19 @@ export async function ghostSuggestAPI(tasks) {
   }
 }
 
-export async function ghostAskAPI(text) {
+export async function ghostAskAPI(text, boardState = {}) {
   try {
     const r = await fetch(`${BASE}/api/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({
+        text,
+        boardState: {
+          backlogCount: boardState.backlog?.length || 0,
+          doingCount: boardState.doing?.length || 0,
+          doneToday: boardState.doneToday || 0,
+        },
+      }),
     });
     return await r.json();
   } catch {

@@ -1,9 +1,25 @@
 // src/components/StudyFocus.jsx
 import Timer from "./Timer";
 
-export default function StudyFocus({ focusTask, toggleDone, activeId, speak }) {
+export default function StudyFocus({
+  focusTask,
+  toggleDone,
+  activeId,
+  speak,
+  ghostSuggest,
+}) {
   if (!focusTask)
-    return <p className="opacity-70">No active task. Ask the ghost 👻</p>;
+    return (
+      <div className="text-center space-y-4">
+        <p className="text-xl opacity-70">No active task 👻</p>
+        <button
+          onClick={ghostSuggest}
+          className="px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-lg"
+        >
+          Ask Ghost for Suggestion
+        </button>
+      </div>
+    );
 
   return (
     <div className="w-full max-w-xl p-6 rounded-xl bg-zinc-800 border border-zinc-600 shadow-lg text-center">

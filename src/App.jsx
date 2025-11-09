@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useKanbanState } from "./hooks/useKanbanState";
 import { useGhost } from "./hooks/useGhost";
 import Ghost from "./components/Ghost";
@@ -8,7 +8,6 @@ import AddTaskBar from "./components/AddTaskBar";
 import Board from "./components/Board";
 import StudyFocus from "./components/StudyFocus";
 import NextUpList from "./components/NextUpList";
-
 
 export default function App() {
   const {
@@ -25,8 +24,6 @@ export default function App() {
     columns,
     focusTask,
     addTask,
-    // NOTE: we won't pass the raw moveTask through the UI anymore,
-    // we’ll wrap it with WIP checks below.
     moveTask: _unusedMoveTask,
     updateTask,
     removeTask,
@@ -35,6 +32,12 @@ export default function App() {
   } = useKanbanState();
 
   const [askOpen, setAskOpen] = useState(false);
+
+  // Music state
+  const [musicPlaying, setMusicPlaying] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(0.3);
+  const audioRef = useRef(null);
+  const fadeIntervalRef = useRef(null);
 
   const {
     ghostPos,
@@ -54,16 +57,134 @@ export default function App() {
   } = useGhost({ tasks, activeId, setActive });
 
   /* ---------------------------
-   * Helpers
+   * MUSIC CONTROLS
    * -------------------------*/
-  const findCol = (id) => columns.find((c) => c.id === id);
-  const countInCol = (id, list = tasks) => list.filter((t) => t.col === id).length;
 
-  // metrics helpers
+  // Initialize audio element
+  useEffect(() => {
+    const audio = new Audio("/study-loop.mp3");
+    audio.loop = true;
+    audio.volume = musicVolume;
+    audioRef.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.src = "";
+    };
+  }, []);
+
+  // Toggle music play/pause
+  const toggleMusic = () => {
+    if (!audioRef.current) return;
+
+    if (musicPlaying) {
+      audioRef.current.pause();
+      setMusicPlaying(false);
+    } else {
+      audioRef.current.play().catch(console.error);
+      setMusicPlaying(true);
+    }
+  };
+
+  // In App.jsx, update the auto-play useEffect:
+  useEffect(() => {
+    if (studyMode && !musicPlaying && audioRef.current) {
+      // Show user-friendly message instead of silent failure
+      audioRef.current
+        .play()
+        .then(() => setMusicPlaying(true))
+        .catch((err) => {
+          console.log("Music autoplay blocked - click Play Music button");
+          // Don't set musicPlaying to true if it failed
+        });
+    }
+  }, [studyMode, musicPlaying]);
+
+  // Smooth volume fade
+  const fadeVolume = (targetVolume, duration = 500) => {
+    if (!audioRef.current) return;
+
+    // Clear any existing fade
+    if (fadeIntervalRef.current) {
+      clearInterval(fadeIntervalRef.current);
+    }
+
+    const startVolume = audioRef.current.volume;
+    const volumeDiff = targetVolume - startVolume;
+    const steps = 20;
+    const stepTime = duration / steps;
+    const volumeStep = volumeDiff / steps;
+    let currentStep = 0;
+
+    fadeIntervalRef.current = setInterval(() => {
+      currentStep++;
+      if (currentStep >= steps) {
+        audioRef.current.volume = targetVolume;
+        clearInterval(fadeIntervalRef.current);
+        fadeIntervalRef.current = null;
+      } else {
+        audioRef.current.volume = startVolume + volumeStep * currentStep;
+      }
+    }, stepTime);
+  };
+
+  // Duck music when ghost is speaking
+  useEffect(() => {
+    if (ghostSpeaking) {
+      // Fade to 20% volume when speaking
+      fadeVolume(musicVolume * 0.2, 300);
+    } else {
+      // Fade back to full volume when done
+      fadeVolume(musicVolume, 500);
+    }
+  }, [ghostSpeaking, musicVolume]);
+
+  // Update audio volume when slider changes
+  useEffect(() => {
+    if (audioRef.current && !ghostSpeaking) {
+      audioRef.current.volume = musicVolume;
+    }
+  }, [musicVolume]);
+
+  /* ---------------------------
+   * KEYBOARD SHORTCUTS
+   * -------------------------*/
+useEffect(() => {
+  function handleKeyPress(e) {
+    // Only if no input is focused
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+
+    if (e.key === "g" && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      ghostSuggest();
+    }
+    if (e.key === "s" && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      setStudyMode((s) => !s);
+    }
+  }
+
+  window.addEventListener("keypress", handleKeyPress);
+  return () => window.removeEventListener("keypress", handleKeyPress);
+}, [ghostSuggest, setStudyMode]);
+
+/* ---------------------------
+ * Helpers
+ * -------------------------*/
+const findCol = (id) => columns.find((c) => c.id === id);
+const countInCol = (id, list = tasks) =>
+  list.filter((t) => t.col === id).length;
+
+function getThroughputLast7Days(list) {
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  return list.filter((t) => t.finishedAt && t.finishedAt >= cutoff).length;
+}
+
   function getThroughputLast7Days(list) {
     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
     return list.filter((t) => t.finishedAt && t.finishedAt >= cutoff).length;
   }
+
   function getAvgCycleTimeDays(list) {
     const finished = list.filter((t) => t.finishedAt && t.startedAt);
     if (!finished.length) return 0;
@@ -81,22 +202,29 @@ export default function App() {
       ...task,
       col: targetColId,
       startedAt:
-        targetColId === "doing" && !task.startedAt ? Date.now() : task.startedAt,
+        targetColId === "doing" && !task.startedAt
+          ? Date.now()
+          : task.startedAt,
       reviewedAt:
-        targetColId === "review" && !task.reviewedAt ? Date.now() : task.reviewedAt,
+        targetColId === "review" && !task.reviewedAt
+          ? Date.now()
+          : task.reviewedAt,
       finishedAt:
-        targetColId === "done" && !task.finishedAt ? Date.now() : task.finishedAt,
+        targetColId === "done" && !task.finishedAt
+          ? Date.now()
+          : task.finishedAt,
     };
   }
 
-  // used by move buttons
   function moveWithWip(id, targetColId) {
     const col = findCol(targetColId);
     const limit = col?.wip;
 
     const nextCount = countInCol(targetColId);
     if (typeof limit === "number" && nextCount >= limit) {
-      speak?.("WIP limit hit. Don't overstress yourself. Please finish something first.");
+      speak?.(
+        "WIP limit hit. Don't overstress yourself. Please finish something first."
+      );
       return;
     }
 
@@ -106,7 +234,6 @@ export default function App() {
     speak?.(targetColId === "done" ? "Nice! Task complete." : "Moved.");
   }
 
-  // used by drag-drop
   function onDrop(e, targetColId) {
     const idFromDnD = e.dataTransfer.getData("text/plain");
     const id = idFromDnD || dragId;
@@ -141,11 +268,59 @@ export default function App() {
         studyMode={studyMode}
         setStudyMode={setStudyMode}
         speak={speak}
+        setTasks={setTasks} // ← ADD THIS
       />
 
       <AddTaskBar newTask={newTask} setNewTask={setNewTask} onAdd={addTask} />
 
-      {/* policies row */}
+      {/* Music Controls - Only show in study mode */}
+      {studyMode && (
+        <div className="mb-4 bg-zinc-800/60 border border-zinc-700 rounded-lg p-3 flex items-center gap-4">
+          <button
+            onClick={toggleMusic}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors flex items-center gap-2"
+          >
+            {musicPlaying ? "⏸️" : "▶️"}
+            <span>{musicPlaying ? "Pause Music" : "Play Music"}</span>
+          </button>
+
+          <div className="flex items-center gap-3 flex-1">
+            <span className="text-sm text-zinc-400">🔊 Volume</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={musicVolume}
+              onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+              className="flex-1 max-w-xs"
+            />
+            <span className="text-sm text-zinc-400 w-12">
+              {Math.round(musicVolume * 100)}%
+            </span>
+          </div>
+          {ghostSpeaking && (
+            <div className="flex items-center gap-2 text-xs text-purple-400 animate-pulse">
+              <span>🎵</span>
+              <div className="flex gap-1">
+                <div
+                  className="w-1 h-3 bg-purple-400 animate-pulse"
+                  style={{ animationDelay: "0ms" }}
+                ></div>
+                <div
+                  className="w-1 h-3 bg-purple-400 animate-pulse"
+                  style={{ animationDelay: "150ms" }}
+                ></div>
+                <div
+                  className="w-1 h-3 bg-purple-400 animate-pulse"
+                  style={{ animationDelay: "300ms" }}
+                ></div>
+              </div>
+              <span>Music ducked</span>
+            </div>
+          )}
+        </div>
+      )}
       <div className="mb-4 text-xs grid md:grid-cols-4 gap-2">
         <div className="bg-zinc-800/60 border border-zinc-700 rounded p-2">
           <div className="font-semibold">Backlog policy</div>
@@ -183,6 +358,7 @@ export default function App() {
               toggleDone={toggleDone}
               activeId={activeId}
               speak={speak}
+              ghostSuggest={ghostSuggest}
             />
           </div>
 
@@ -193,7 +369,7 @@ export default function App() {
               columns={columns}
               setDragId={setDragId}
               setDragging={setDragging}
-              moveTask={moveWithWip}         
+              moveTask={moveWithWip}
               removeTask={removeTask}
               cyclePriority={cyclePriority}
               toggleDone={toggleDone}
@@ -204,11 +380,11 @@ export default function App() {
         <Board
           columns={columns}
           tasks={tasks}
-          moveTask={moveWithWip}             
+          moveTask={moveWithWip}
           removeTask={removeTask}
           cyclePriority={cyclePriority}
           toggleDone={toggleDone}
-          onDrop={onDrop}                     
+          onDrop={onDrop}
           setDragId={setDragId}
           setDragging={setDragging}
         />
@@ -216,21 +392,42 @@ export default function App() {
 
       {/* Ghost live caption */}
       <div
-        className="fixed right-24 bottom-24 w-96 max-w-[90vw] bg-zinc-800/80 border border-zinc-700 rounded-xl p-3 shadow-lg backdrop-blur"
+        className="fixed right-6 bottom-24 w-80 max-w-[90vw] bg-zinc-800/95 border border-zinc-700 rounded-xl p-3 shadow-2xl backdrop-blur-lg transition-all"
+        style={{
+          transform: ghostSpeaking ? "scale(1.02)" : "scale(1)",
+          borderColor: ghostSpeaking ? "#a78bfa" : "#52525b",
+        }}
         role="status"
         aria-live="polite"
       >
-        <div className="text-[10px] uppercase tracking-wide text-zinc-400">
-          Ghost Topic
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-[10px] uppercase tracking-wide text-zinc-400">
+            {ghostSpeaking ? "🗣️ Speaking" : "💭 Last Message"}
+          </div>
+          {ghostSpeaking && (
+            <div className="flex gap-1">
+              <div className="w-1 h-3 bg-purple-400 animate-pulse"></div>
+              <div
+                className="w-1 h-3 bg-purple-400 animate-pulse"
+                style={{ animationDelay: "0.2s" }}
+              ></div>
+              <div
+                className="w-1 h-3 bg-purple-400 animate-pulse"
+                style={{ animationDelay: "0.4s" }}
+              ></div>
+            </div>
+          )}
         </div>
-        <div className="mt-1 text-sm font-medium">{ghostTopic || "—"}</div>
-        <div className="mt-2 text-sm text-zinc-200 whitespace-pre-wrap">
-          {ghostCaption || ""}
+        <div className="text-sm font-medium text-purple-300">
+          {ghostTopic || "—"}
+        </div>
+        <div className="mt-2 text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed">
+          {ghostCaption || "Waiting for ghost..."}
         </div>
       </div>
 
       <Ghost
-        onSpeak={() => speak("Boo! let’s focus up.")}
+        onSpeak={() => speak("Boo! let's focus up.")}
         excited={ghostThinking || dragging || Boolean(ghostGrab)}
         thinking={ghostThinking}
         speaking={ghostSpeaking}
@@ -244,7 +441,6 @@ export default function App() {
         <AskModal
           onClose={() => setAskOpen(false)}
           onAsk={async (text) => {
-            // close immediately (don’t wait for TTS)
             setAskOpen(false);
             try {
               setGhostThinking(true);

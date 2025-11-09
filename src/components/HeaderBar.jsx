@@ -6,6 +6,7 @@ export default function HeaderBar({
   studyMode,
   setStudyMode,
   speak,
+  setTasks, // ← ADD THIS
 }) {
   return (
     <div className="flex items-center justify-between mb-6">
@@ -15,9 +16,7 @@ export default function HeaderBar({
         {/* Ghost Suggests */}
         <button
           onClick={async () => {
-            // Say thinking FIRST, wait for it to finish
             await speak?.("Thinking… give me just a sec.");
-            // Now run the suggestion logic
             await onSuggest();
           }}
           disabled={ghostThinking}
@@ -35,7 +34,7 @@ export default function HeaderBar({
         <button
           onClick={() => {
             onAskOpen();
-            speak?.("What’s on your mind?");
+            speak?.("What's on your mind?");
           }}
           className="px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500"
         >
@@ -48,7 +47,7 @@ export default function HeaderBar({
             await speak?.(
               studyMode
                 ? "Exiting focus mode. Back to the board."
-                : "Entering study mode. Let’s lock in."
+                : "Entering study mode. Let's lock in."
             );
             setStudyMode((s) => !s);
           }}
@@ -57,6 +56,37 @@ export default function HeaderBar({
           } hover:bg-indigo-500`}
         >
           {studyMode ? "Exit Study Mode" : "Study Mode"}
+        </button>
+
+        {/* Load Demo - ADD THIS */}
+        <button
+          onClick={() => {
+            const demos = [
+              {
+                id: crypto.randomUUID(),
+                text: "fix login bug",
+                col: "backlog",
+                priority: "high",
+              },
+              {
+                id: crypto.randomUUID(),
+                text: "study for CS midterm",
+                col: "backlog",
+                priority: "med",
+              },
+              {
+                id: crypto.randomUUID(),
+                text: "how to center a div",
+                col: "backlog",
+                priority: "low",
+              },
+            ];
+            setTasks(demos);
+            speak?.("Demo board loaded. Ask me what to do!");
+          }}
+          className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-sm"
+        >
+          Load Demo
         </button>
       </div>
     </div>
